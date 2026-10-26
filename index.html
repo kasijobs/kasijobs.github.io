@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1C1A16">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="KasiJobs">
 <meta name="description" content="Small jobs and services around KwaMhlanga, posted straight from your phone.">
 <title>KasiJobs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -477,6 +481,14 @@
     if (state.tab === 'browse' && !document.hidden) refresh();
   }, 60000);
 })();
+</script>
+<script>
+  /* Lets phones install KasiJobs as an app. Safe to fail: the page works without it. */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
+    });
+  }
 </script>
 </body>
 </html>
