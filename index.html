@@ -78,6 +78,16 @@
   .card-name { font-size: 0.85rem; color: #6B644F; font-weight: 600; overflow-wrap: anywhere; }
   .btn { display: inline-block; background: var(--services); color: var(--paper); padding: 7px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
   .btn--disabled { background: #B9B1A0; color: #6B644F; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .tag { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; border: 1.5px solid; white-space: nowrap; }
+  .tag--need { color: #4A453C; border-color: #4A453C; }
+  .tag--offer { color: var(--services); border-color: var(--services); }
+  .chips { flex-wrap: wrap; }
+  .chip.is-active.chip--kind { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+  .seg { display: flex; gap: 8px; }
+  .seg-btn { flex: 1; padding: 11px 8px; border-radius: 6px; border: 1.5px solid #D9D0BB; background: #FFFDF8; color: #4A453C; font-weight: 700; font-size: 0.9rem; font-family: inherit; cursor: pointer; }
+  .seg-btn.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .post { display: flex; flex-direction: column; gap: 14px; background: var(--paper); padding: 18px; border-radius: 6px; box-shadow: 4px 4px 0 rgba(0,0,0,0.5); }
   .field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
@@ -113,7 +123,7 @@
   };
 
   function emptyForm() {
-    return { title: '', group: 'work', subcat: SUBCATS.work[0], description: '', price: '', area: '', name: '', phone: '' };
+    return { kind: 'need', title: '', group: 'work', subcat: SUBCATS.work[0], description: '', price: '', area: '', name: '', phone: '' };
   }
 
   var state = {
@@ -121,6 +131,7 @@
     postings: [],
     loading: true,
     filter: 'all',
+    kindFilter: 'all',
     query: '',
     justPostedId: null,
     submitting: false,
@@ -182,6 +193,7 @@
   function rowToPosting(r) {
     return {
       id: r.id, title: r.title, group: r.group_type === 'services' ? 'services' : 'work', subcat: r.subcat,
+      kind: r.kind === 'offer' ? 'offer' : 'need',
       description: r.description || '', price: r.price, area: r.area, name: r.name, phone: r.phone, postedAt: r.posted_at
     };
   }
@@ -199,7 +211,7 @@
       headers: sbHeaders({ 'Content-Type': 'application/json', Prefer: 'return=representation' }),
       body: JSON.stringify({
         title: p.title, group_type: p.group, subcat: p.subcat, description: p.description,
-        price: p.price, area: p.area, name: p.name, phone: p.phone
+        price: p.price, area: p.area, name: p.name, phone: p.phone, kind: p.kind
       })
     }).then(function (res) {
       if (!res.ok) throw new Error('save failed: ' + res.status);
@@ -213,8 +225,8 @@
   var tabBrowse, tabPost, bannerEl, mainEl, listEl, bannerTimer;
 
   function build() {
-    tabBrowse = h('button', { class: 'tab', role: 'tab', onClick: function () { go('browse'); } }, 'Browse work');
-    tabPost = h('button', { class: 'tab tab--post', role: 'tab', onClick: function () { go('post'); } }, 'Post a job');
+    tabBrowse = h('button', { class: 'tab', role: 'tab', onClick: function () { go('browse'); } }, 'Browse');
+    tabPost = h('button', { class: 'tab tab--post', role: 'tab', onClick: function () { go('post'); } }, 'Post');
     bannerEl = h('div', { 'aria-live': 'polite' });
     mainEl = h('main');
     app.replaceChildren(
@@ -288,7 +300,20 @@
       value: state.query,
       onInput: function (e) { state.query = e.target.value; renderList(); }
     });
-    mainEl.replaceChildren(h('div', { class: 'filters' }, chipsEl, search), listEl);
+    var kindEl = h('div', { class: 'chips' });
+    [['all', 'Everything'], ['need', 'Need someone'], ['offer', 'Offering']].forEach(function (d) {
+      var kb = h('button', {
+        class: 'chip chip--kind' + (state.kindFilter === d[0] ? ' is-active' : ''),
+        onClick: function () {
+          state.kindFilter = d[0];
+          kindEl.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('is-active'); });
+          kb.classList.add('is-active');
+          renderList();
+        }
+      }, d[1]);
+      kindEl.appendChild(kb);
+    });
+    mainEl.replaceChildren(h('div', { class: 'filters' }, chipsEl, kindEl, search), listEl);
     renderList();
   }
 
@@ -296,6 +321,7 @@
     var q = state.query.trim().toLowerCase();
     var items = state.postings.filter(function (p) {
       if (state.filter !== 'all' && p.group !== state.filter) return false;
+      if (state.kindFilter !== 'all' && p.kind !== state.kindFilter) return false;
       if (!q) return true;
       return [p.title, p.description, p.subcat, p.area].some(function (s) { return String(s || '').toLowerCase().indexOf(q) !== -1; });
     });
@@ -307,7 +333,7 @@
     if (items.length === 0) {
       listEl.replaceChildren(h('div', { class: 'empty' },
         h('p', null, state.postings.length === 0 ? 'Nothing posted yet.' : 'Nothing matches that search.'),
-        state.postings.length === 0 ? h('button', { class: 'empty-cta', onClick: function () { go('post'); } }, 'Be the first — post a job') : null));
+        state.postings.length === 0 ? h('button', { class: 'empty-cta', onClick: function () { go('post'); } }, 'Be the first — post something') : null));
       return;
     }
     listEl.replaceChildren(h('ul', { class: 'list' }, items.map(card)));
@@ -318,7 +344,9 @@
     var wa = n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent('Hi, I saw your KasiJobs post: ' + p.title) : null;
     var li = h('li', { class: 'card card--' + p.group + (p.id === state.justPostedId ? ' card--new' : '') },
       h('div', { class: 'card-top' },
-        h('span', { class: 'badge badge--' + p.group }, p.subcat),
+        h('div', { class: 'badges' },
+          h('span', { class: 'badge badge--' + p.group }, p.subcat),
+          h('span', { class: 'tag tag--' + p.kind }, p.kind === 'offer' ? 'Offering' : 'Needs someone')),
         h('span', { class: 'price' }, displayPrice(p.price))),
       h('h3', { class: 'card-title' }, p.title),
       p.description ? h('p', { class: 'card-desc' }, p.description) : null,
@@ -375,12 +403,33 @@
     var submit = h('button', { class: 'submit', type: 'button' }, 'Post it');
     submit.addEventListener('click', function () { doSubmit(submit, showErr); });
 
+    var KIND_TEXT = {
+      need: { title: 'e.g. Need 2 people to move furniture Saturday', rate: 'Budget', ratePh: 'e.g. R350 for the day' },
+      offer: { title: 'e.g. Electrician: wiring, DB boards, call-outs', rate: 'Your rate', ratePh: 'e.g. From R350 call-out' }
+    };
+    var titleInput = textInput('f-title', 'title', KIND_TEXT[f.kind].title, { max: 120 });
+    var rateInput = textInput('f-price', 'price', KIND_TEXT[f.kind].ratePh, { max: 40 });
+    var rateLabel = h('label', { for: 'f-price' }, KIND_TEXT[f.kind].rate);
+    var needBtn = h('button', { type: 'button', class: 'seg-btn' + (f.kind === 'need' ? ' is-active' : '') }, 'I need someone');
+    var offerBtn = h('button', { type: 'button', class: 'seg-btn' + (f.kind === 'offer' ? ' is-active' : '') }, "I'm offering a service");
+    function setKind(k) {
+      state.form.kind = k;
+      needBtn.classList.toggle('is-active', k === 'need');
+      offerBtn.classList.toggle('is-active', k === 'offer');
+      titleInput.setAttribute('placeholder', KIND_TEXT[k].title);
+      rateInput.setAttribute('placeholder', KIND_TEXT[k].ratePh);
+      rateLabel.textContent = KIND_TEXT[k].rate;
+    }
+    needBtn.addEventListener('click', function () { setKind('need'); });
+    offerBtn.addEventListener('click', function () { setKind('offer'); });
+
     mainEl.replaceChildren(h('section', { class: 'post' },
-      field("What's this about?", 'f-title', textInput('f-title', 'title', 'e.g. Need 2 people to move furniture Saturday', { max: 120 })),
+      h('div', { class: 'field' }, h('label', null, 'What would you like to do?'), h('div', { class: 'seg' }, needBtn, offerBtn)),
+      field("What's this about?", 'f-title', titleInput),
       h('div', { class: 'field-row' }, field('Category', 'f-group', groupSel), field('Type', 'f-subcat', subSel)),
       field('Add the details', 'f-desc', desc),
       h('div', { class: 'field-row' },
-        field('Budget or rate', 'f-price', textInput('f-price', 'price', 'e.g. R350 for the day', { max: 40 })),
+        h('div', { class: 'field' }, rateLabel, rateInput),
         field('Area', 'f-area', textInput('f-area', 'area', 'e.g. Zone 1', { max: 60 }))),
       h('div', { class: 'field-row' },
         field('Your name', 'f-name', textInput('f-name', 'name', 'Optional', { max: 60, auto: 'name' })),
@@ -394,14 +443,14 @@
     if (state.submitting) return;
     var f = state.form;
     var title = f.title.trim(), price = f.price.trim(), phone = f.phone.trim();
-    if (!title || !price || !phone) { showErr("Add what it's about, a budget or rate, and a number to reach you."); return; }
+    if (!title || !price || !phone) { showErr("Add what it's about, a price or rate, and a number to reach you."); return; }
     if (!normalizePhone(phone)) { showErr('Enter a valid South African number, like 072 123 4567.'); return; }
 
     state.submitting = true;
     btn.disabled = true;
     btn.textContent = 'Posting…';
     insertPosting({
-      title: title, group: f.group, subcat: f.subcat, description: f.description.trim(), price: price,
+      kind: f.kind, title: title, group: f.group, subcat: f.subcat, description: f.description.trim(), price: price,
       area: f.area.trim() || 'KwaMhlanga', name: f.name.trim() || 'Local poster', phone: phone
     }).then(function (saved) {
       state.postings.unshift(saved);
